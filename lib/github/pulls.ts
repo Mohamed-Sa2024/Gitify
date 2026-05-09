@@ -5,6 +5,7 @@ import type {
   GhBranch,
   GhBranchDetail,
   GhCheckRunsResponse,
+  GhCompareResponse,
   GhCreatePRPayload,
   GhPull,
   GhPullFile,
@@ -193,6 +194,22 @@ export async function submitReview({
   const r = await githubClient.post<GhReview>(
     `/repos/${owner}/${repo}/pulls/${number}/reviews`,
     { event, body },
+  );
+  return r.data;
+}
+
+/**
+ * GET /repos/{owner}/{repo}/compare/{base}...{head}
+ * ahead_by = commits on defaultBranch that PR branch doesn't have = drift.
+ */
+export async function fetchBranchComparison({
+  owner,
+  repo,
+  base,
+  head,
+}: RepoCoord & { base: string; head: string }): Promise<GhCompareResponse> {
+  const r = await githubClient.get<GhCompareResponse>(
+    `/repos/${owner}/${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`,
   );
   return r.data;
 }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   ArrowUpRight,
+  ArrowLeft,
   Bot,
   CheckCircle2,
   ChevronRight,
@@ -22,8 +23,12 @@ import { BranchPill } from "@/components/BranchPill";
 import { StatusDot } from "@/components/StatusDot";
 import { Tag } from "@/components/Tag";
 import { DiffViewer } from "./DiffViewer";
+import { DriftPanel } from "./DriftPanel";
 import { ReviewPanel } from "./ReviewPanel";
+import { AIReviewPanel } from "./AIReviewPanel";
+import { PRSummaryCard } from "./PRSummaryCard";
 import { mergePull } from "@/lib/github/pulls";
+import { useRepos } from "@/hooks/use-repos";
 import type { PullRequest } from "@/types/domain";
 
 interface Props {
@@ -62,6 +67,9 @@ function buildChainToCurrentPR(
 export function PRDetail({ pr, allPRs, fullName, onClose }: Props) {
   const t = branchType(pr.branch);
   const queryClient = useQueryClient();
+  const { data: repos } = useRepos();
+  const activeRepo = repos?.find((r) => r.fullName === fullName);
+  const defaultBranch = activeRepo?.defaultBranch ?? "main";
   const parent = allPRs.find((p) => p.number === pr.parentNumber);
   const children = allPRs.filter((p) => p.parentNumber === pr.number);
   const isInStack = parent !== undefined || children.length > 0;
@@ -85,7 +93,7 @@ export function PRDetail({ pr, allPRs, fullName, onClose }: Props) {
   })();
 
   // ── Tab state ────────────────────────────────────────────────────────────
-  const [tab, setTab] = useState<"overview" | "diff">("overview");
+  const [tab, setTab] = useState<"overview" | "diff" | "ai-review">("overview");
 
   // ── Single PR merge state ─────────────────────────────────────────────────
   const [singleMerging, setSingleMerging] = useState(false);
@@ -237,32 +245,132 @@ export function PRDetail({ pr, allPRs, fullName, onClose }: Props) {
             ))}
           </div>
         )}
+
+        {pr.momentumScore > 0 && (
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-[10px] font-mono text-textMute uppercase tracking-wider">
+              momentum
+            </span>
+            <div className="flex-1 h-1 rounded-full overflow-hidden bg-bg">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{
+                  width: `${pr.momentumScore}%`,
+                  background:
+                    pr.momentumScore >= 70
+                      ? TOKENS.accent
+                      : pr.momentumScore >= 40
+                        ? TOKENS.amber
+                        : TOKENS.red,
+                }}
+              />
+            </div>
+            <span
+              className="text-[11px] font-mono"
+              style={{
+                color:
+                  pr.momentumScore >= 70
+                    ? TOKENS.accent
+                    : pr.momentumScore >= 40
+                      ? TOKENS.amber
+                      : TOKENS.red,
+              }}
+            >
+              {pr.momentumScore}/100
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Tab strip */}
-      <div className="flex items-center gap-1 px-4 py-2 border-b border-border">
-        {(["overview", "diff"] as const).map((t) => (
+      <div className="flex items-center gap-1 px-4 py-2 border-b border-border bg-surface">
+        {(["overview", "diff", "ai-review"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className="px-3 py-1 rounded text-[12px] capitalize transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[12px] transition-all"
             style={{
               background: tab === t ? TOKENS.surface2 : "transparent",
               color: tab === t ? TOKENS.text : TOKENS.textDim,
             }}
           >
-            {t}
+            {t === "ai-review" && <Bot size={11} />}
+            {t === "overview" ? "Overview" : t === "diff" ? "Diff" : "AI Review"}
           </button>
         ))}
       </div>
 
+      {/* Full-screen diff overlay */}
+      {tab === "diff" && fullName && (
+        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: TOKENS.bg }}>
+          {/* Overlay header */}
+          <div
+            className="flex items-center gap-3 px-5 py-3 shrink-0"
+            style={{ background: TOKENS.surface, borderBottom: `1px solid ${TOKENS.border}` }}
+          >
+            <button
+              onClick={() => setTab("overview")}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[12px] font-medium transition-colors hover:bg-white/5"
+              style={{ color: TOKENS.textDim, border: `1px solid ${TOKENS.border}` }}
+            >
+              <ArrowLeft size={13} />
+              Back
+            </button>
+            <div
+              className="w-px h-4 shrink-0"
+              style={{ background: TOKENS.border }}
+            />
+            <StatusDot status={pr.status} />
+            <span
+              className="font-mono text-[11px] shrink-0"
+              style={{ color: TOKENS.textMute }}
+            >
+              #{pr.number}
+            </span>
+            <span
+              className="text-[13px] font-medium truncate"
+              style={{ color: TOKENS.text }}
+            >
+              {pr.title}
+            </span>
+            <div className="flex items-center gap-1.5 ml-auto shrink-0">
+              <BranchPill name={pr.branch} size="md" />
+              <ChevronRight size={11} className="text-textMute" />
+              <BranchPill name={pr.base} size="md" />
+            </div>
+          </div>
+          {/* Scrollable diff body */}
+          <div className="flex-1 overflow-auto">
+            <DiffViewer fullName={fullName} prNumber={pr.number} />
+          </div>
+        </div>
+      )}
+
       {/* Scrollable body */}
       <div className="flex-1 overflow-auto">
-        {tab === "diff" && fullName && (
-          <DiffViewer fullName={fullName} prNumber={pr.number} />
+        {tab === "ai-review" && fullName && (
+          <AIReviewPanel
+            fullName={fullName}
+            prNumber={pr.number}
+            prTitle={pr.title}
+            prBody={pr.body}
+            enabled={tab === "ai-review"}
+          />
         )}
         {tab === "overview" && (
         <>
+        {/* AI Summary */}
+        {fullName && (
+          <div className="p-5 border-b border-border">
+            <PRSummaryCard
+              fullName={fullName}
+              prNumber={pr.number}
+              prTitle={pr.title}
+              prBody={pr.body}
+            />
+          </div>
+        )}
+
         {/* Merge readiness */}
         <div className="p-5 border-b border-border">
           <div className="flex items-center gap-2 mb-3">
@@ -309,6 +417,15 @@ export function PRDetail({ pr, allPRs, fullName, onClose }: Props) {
             </div>
           </div>
         </div>
+
+        {/* Diff drift */}
+        {fullName && (
+          <DriftPanel
+            fullName={fullName}
+            prBranch={pr.branch}
+            defaultBranch={defaultBranch}
+          />
+        )}
 
         {/* Stack chain */}
         {isInStack && (

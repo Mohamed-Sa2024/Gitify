@@ -7,12 +7,12 @@ import type { GhPullFile } from "@/types/github";
 export function useDiff(
   fullName: string | null,
   number: number | null,
-): { files: GhPullFile[]; isLoading: boolean; isError: boolean } {
+): { files: GhPullFile[]; isLoading: boolean; isError: boolean; refetch: () => void } {
   const parts = fullName?.split("/") ?? [];
   const owner = parts[0];
   const repo = parts[1];
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["pull-files", fullName, number],
     enabled: !!owner && !!repo && number !== null,
     staleTime: 5 * 60_000,
@@ -20,5 +20,5 @@ export function useDiff(
       fetchPullFiles({ owner: owner!, repo: repo!, number: number! }),
   });
 
-  return { files: data ?? [], isLoading, isError };
+  return { files: data ?? [], isLoading, isError, refetch };
 }

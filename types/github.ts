@@ -125,6 +125,7 @@ export type GhFileStatus =
 export interface GhPullFile {
   sha: string;
   filename: string;
+  previous_filename?: string;
   status: GhFileStatus;
   additions: number;
   deletions: number;
@@ -167,6 +168,13 @@ export interface GhCreatePRPayload {
 }
 
 export type GhReviewEvent = "APPROVE" | "REQUEST_CHANGES" | "COMMENT";
+
+export interface GhCompareResponse {
+  status: "ahead" | "behind" | "diverged" | "identical";
+  ahead_by: number;
+  behind_by: number;
+  total_commits: number;
+}
 
 export interface GhInstallation {
   id: number;

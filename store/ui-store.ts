@@ -11,7 +11,8 @@ export type ViewMode =
   | "health"
   | "review-load"
   | "blast-radius"
-  | "branches-mgmt";
+  | "branches-mgmt"
+  | "duplicate-radar";
 
 interface UIState {
   view: ViewMode;

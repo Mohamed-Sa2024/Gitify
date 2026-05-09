@@ -6,6 +6,7 @@ import {
   BarChart3,
   CheckCircle2,
   Clock,
+  Copy,
   GitBranch,
   GitMerge,
   Hash,
@@ -32,6 +33,7 @@ import { MergeQueueView } from "@/features/merge-queue/MergeQueueView";
 import { BlastRadiusView } from "@/features/blast-radius/BlastRadiusView";
 import { CreatePRView } from "@/features/create-pr/CreatePRView";
 import { BranchManagementView } from "@/features/branches-mgmt/BranchManagementView";
+import { DuplicateRadarView } from "@/features/duplicate-radar/DuplicateRadarView";
 import { useRepos } from "@/hooks/use-repos";
 import { usePulls } from "@/hooks/use-pulls";
 import { useClosedPulls } from "@/hooks/use-closed-pulls";
@@ -71,6 +73,7 @@ const TABS: { id: ViewMode; label: string; Icon: LucideIcon }[] = [
   { id: "review-load", label: "Load", Icon: Users },
   { id: "blast-radius", label: "Blast Radius", Icon: Target },
   { id: "branches-mgmt", label: "Branches", Icon: GitBranch },
+  { id: "duplicate-radar", label: "Radar", Icon: Copy },
 ];
 
 function DashboardMain() {
@@ -91,7 +94,10 @@ function DashboardMain() {
   const activeRepo = repos?.find((r) => r.fullName === activeRepoFullName);
   useEffect(() => {
     if (!activeRepoFullName && repos && repos.length > 0) {
-      setActiveRepo(repos[0]!.fullName);
+      const best = repos.reduce((a, b) =>
+        b.openIssuesCount > a.openIssuesCount ? b : a,
+      );
+      setActiveRepo(best.fullName);
     }
   }, [activeRepoFullName, repos, setActiveRepo]);
 
@@ -261,6 +267,13 @@ function DashboardMain() {
                   fullName={activeRepoFullName}
                   openPRs={prs ?? []}
                   onSelectPR={(n) => selectPR(n)}
+                />
+              )}
+              {view === "duplicate-radar" && (
+                <DuplicateRadarView
+                  prs={filteredPRs}
+                  selectedNumber={selectedPRNumber}
+                  onSelect={(p) => selectPR(p.number)}
                 />
               )}
             </>
