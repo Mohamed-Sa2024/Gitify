@@ -2,11 +2,15 @@
 
 import { githubClient } from "./client";
 import type {
+  GhBranch,
+  GhBranchDetail,
   GhCheckRunsResponse,
+  GhCreatePRPayload,
   GhPull,
   GhPullFile,
   GhMergeResponse,
   GhReview,
+  GhReviewEvent,
 } from "@/types/github";
 
 interface RepoCoord {
@@ -123,5 +127,72 @@ export async function fetchClosedPulls({
       direction: "desc",
     },
   });
+  return r.data;
+}
+
+/** GET /repos/{owner}/{repo}/branches */
+export async function fetchBranches({
+  owner,
+  repo,
+}: RepoCoord): Promise<GhBranch[]> {
+  const r = await githubClient.get<GhBranch[]>(
+    `/repos/${owner}/${repo}/branches`,
+    { params: { per_page: 100 } },
+  );
+  return r.data;
+}
+
+/** GET /repos/{owner}/{repo}/branches/{branch} */
+export async function fetchBranchDetail({
+  owner,
+  repo,
+  branch,
+}: RepoCoord & { branch: string }): Promise<GhBranchDetail> {
+  const r = await githubClient.get<GhBranchDetail>(
+    `/repos/${owner}/${repo}/branches/${encodeURIComponent(branch)}`,
+  );
+  return r.data;
+}
+
+/** DELETE /repos/{owner}/{repo}/git/refs/heads/{branch} */
+export async function deleteBranch({
+  owner,
+  repo,
+  branch,
+}: RepoCoord & { branch: string }): Promise<void> {
+  await githubClient.delete(
+    `/repos/${owner}/${repo}/git/refs/heads/${encodeURIComponent(branch)}`,
+  );
+}
+
+/** POST /repos/{owner}/{repo}/pulls */
+export async function createPull({
+  owner,
+  repo,
+  payload,
+}: RepoCoord & { payload: GhCreatePRPayload }): Promise<GhPull> {
+  const r = await githubClient.post<GhPull>(
+    `/repos/${owner}/${repo}/pulls`,
+    payload,
+  );
+  return r.data;
+}
+
+/** POST /repos/{owner}/{repo}/pulls/{number}/reviews */
+export async function submitReview({
+  owner,
+  repo,
+  number,
+  event,
+  body,
+}: RepoCoord & {
+  number: number;
+  event: GhReviewEvent;
+  body: string;
+}): Promise<GhReview> {
+  const r = await githubClient.post<GhReview>(
+    `/repos/${owner}/${repo}/pulls/${number}/reviews`,
+    { event, body },
+  );
   return r.data;
 }

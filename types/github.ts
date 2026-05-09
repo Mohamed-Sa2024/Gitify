@@ -140,6 +140,34 @@ export interface GhMergeResponse {
   message: string;
 }
 
+export interface GhBranch {
+  name: string;
+  commit: { sha: string };
+  protected: boolean;
+}
+
+export interface GhBranchDetail {
+  name: string;
+  commit: {
+    sha: string;
+    commit: {
+      author: { name: string; date: string } | null;
+      message: string;
+    };
+  };
+  protected: boolean;
+}
+
+export interface GhCreatePRPayload {
+  title: string;
+  head: string;
+  base: string;
+  body?: string;
+  draft?: boolean;
+}
+
+export type GhReviewEvent = "APPROVE" | "REQUEST_CHANGES" | "COMMENT";
+
 export interface GhInstallation {
   id: number;
   app_id: number;

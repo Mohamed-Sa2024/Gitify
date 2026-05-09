@@ -30,6 +30,8 @@ import { PRHealthView } from "@/features/health/PRHealthView";
 import { ReviewLoadView } from "@/features/review-load/ReviewLoadView";
 import { MergeQueueView } from "@/features/merge-queue/MergeQueueView";
 import { BlastRadiusView } from "@/features/blast-radius/BlastRadiusView";
+import { CreatePRView } from "@/features/create-pr/CreatePRView";
+import { BranchManagementView } from "@/features/branches-mgmt/BranchManagementView";
 import { useRepos } from "@/hooks/use-repos";
 import { usePulls } from "@/hooks/use-pulls";
 import { useClosedPulls } from "@/hooks/use-closed-pulls";
@@ -68,6 +70,7 @@ const TABS: { id: ViewMode; label: string; Icon: LucideIcon }[] = [
   { id: "health", label: "Health", Icon: Shield },
   { id: "review-load", label: "Load", Icon: Users },
   { id: "blast-radius", label: "Blast Radius", Icon: Target },
+  { id: "branches-mgmt", label: "Branches", Icon: GitBranch },
 ];
 
 function DashboardMain() {
@@ -79,10 +82,13 @@ function DashboardMain() {
     selectedPRNumber,
     selectPR,
     filtersOpen,
+    createPROpen,
+    setCreatePROpen,
   } = useUIStore();
 
   // Auto-pick first repo on load
   const { data: repos } = useRepos();
+  const activeRepo = repos?.find((r) => r.fullName === activeRepoFullName);
   useEffect(() => {
     if (!activeRepoFullName && repos && repos.length > 0) {
       setActiveRepo(repos[0]!.fullName);
@@ -250,6 +256,13 @@ function DashboardMain() {
                   onSelect={(p) => selectPR(p.number)}
                 />
               )}
+              {view === "branches-mgmt" && activeRepoFullName && (
+                <BranchManagementView
+                  fullName={activeRepoFullName}
+                  openPRs={prs ?? []}
+                  onSelectPR={(n) => selectPR(n)}
+                />
+              )}
             </>
           )}
         </div>
@@ -265,6 +278,15 @@ function DashboardMain() {
             onClose={() => selectPR(null)}
           />
         </div>
+      )}
+
+      {/* Create PR overlay */}
+      {createPROpen && activeRepoFullName && (
+        <CreatePRView
+          fullName={activeRepoFullName}
+          defaultBranch={activeRepo?.defaultBranch ?? "main"}
+          onClose={() => setCreatePROpen(false)}
+        />
       )}
     </main>
   );

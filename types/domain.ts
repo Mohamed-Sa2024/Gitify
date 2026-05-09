@@ -82,6 +82,20 @@ export interface PullRequest {
   antiPatterns: AntiPattern[];
 }
 
+export interface BranchSummary {
+  name: string;
+  lastCommitSha: string;
+  lastCommitMessage: string;
+  lastCommitAuthor: string;
+  lastCommitDate: string;
+  ageHours: number;
+  isDefault: boolean;
+  isProtected: boolean;
+  isStale: boolean;
+  hasOpenPR: boolean;
+  openPRNumber: number | null;
+}
+
 export interface RepoSummary {
   id: number;
   name: string;

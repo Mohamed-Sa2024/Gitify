@@ -7,6 +7,7 @@ import {
   Filter,
   GitBranch,
   LogOut,
+  Plus,
   Search,
 } from "lucide-react";
 import { TOKENS } from "@/lib/design";
@@ -24,7 +25,7 @@ import { useViewer } from "@/hooks/use-repos";
  */
 export function Topbar() {
   const { search, setSearch, activeCount } = useFilterStore();
-  const { filtersOpen, toggleFilters, activeRepoFullName } = useUIStore();
+  const { filtersOpen, toggleFilters, activeRepoFullName, setCreatePROpen } = useUIStore();
   const { signOut } = useAuth();
   const { data: viewer } = useViewer();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -83,6 +84,16 @@ export function Topbar() {
             spellCheck={false}
           />
         </div>
+
+        {activeRepoFullName && (
+          <button
+            onClick={() => setCreatePROpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium"
+            style={{ background: TOKENS.accent, color: TOKENS.bg }}
+          >
+            <Plus size={13} strokeWidth={2.5} /> New PR
+          </button>
+        )}
 
         <button
           onClick={toggleFilters}
