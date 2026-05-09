@@ -130,6 +130,39 @@ function detectAntiPatterns(
 }
 
 /* ============================================================================
+   PUBLIC: compute momentum score
+   ========================================================================== */
+
+export function computeMomentumScore(
+  status: PRStatus,
+  ci: CIStatus,
+  approvals: number,
+  reviewerCount: number,
+  conflicts: boolean,
+  draft: boolean,
+  updatedHours: number,
+  ageHours: number,
+): number {
+  if (status === "merged" || status === "closed") return 0;
+  let score = 0;
+  // CI (30 pts)
+  if (ci === "passing") score += 30;
+  else if (ci === "pending") score += 10;
+  // Approvals (25 pts)
+  const needed = Math.max(reviewerCount, 1);
+  score += Math.min(25, Math.round((approvals / needed) * 25));
+  // No conflicts (20 pts)
+  if (!conflicts) score += 20;
+  // Recent activity (15 pts)
+  if (updatedHours < 24) score += 15;
+  else if (updatedHours < 48) score += 10;
+  else if (updatedHours < 72) score += 5;
+  // Not draft (10 pts)
+  if (!draft) score += 10;
+  return Math.min(100, Math.max(0, score));
+}
+
+/* ============================================================================
    PUBLIC: enrich a single PR
    ========================================================================== */
 
@@ -177,6 +210,16 @@ export function enrichPR({ pr, reviews, checkRuns }: EnrichInput): PullRequest {
     isStale: updatedHours > 48,
     isAged: ageHours > 72,
     antiPatterns: detectAntiPatterns(pr, ci),
+    momentumScore: computeMomentumScore(
+      status,
+      ci,
+      reviewers.filter((r) => r.approved).length,
+      reviewers.length,
+      pr.mergeable === false || pr.mergeable_state === "dirty",
+      pr.draft,
+      updatedHours,
+      ageHours,
+    ),
   };
 }
 

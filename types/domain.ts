@@ -80,6 +80,21 @@ export interface PullRequest {
   isStale: boolean;
   isAged: boolean;
   antiPatterns: AntiPattern[];
+  momentumScore: number; // 0–100
+}
+
+export interface BranchSummary {
+  name: string;
+  lastCommitSha: string;
+  lastCommitMessage: string;
+  lastCommitAuthor: string;
+  lastCommitDate: string;
+  ageHours: number;
+  isDefault: boolean;
+  isProtected: boolean;
+  isStale: boolean;
+  hasOpenPR: boolean;
+  openPRNumber: number | null;
 }
 
 export interface RepoSummary {
@@ -92,4 +107,45 @@ export interface RepoSummary {
   openIssuesCount: number;
   stargazersCount: number;
   description: string | null;
+}
+
+// ── AI types ──────────────────────────────────────────────────────────────────
+
+export type AIFindingSeverity = "critical" | "warning" | "suggestion";
+
+export interface AIFinding {
+  severity: AIFindingSeverity;
+  file: string;
+  title: string;
+  description: string;
+}
+
+export interface AIReviewResult {
+  summary: string;
+  findings: AIFinding[];
+  generatedAt: number;
+}
+
+export interface PRSummaryResult {
+  aiSummary: string;
+  descriptionMatch: "match" | "mismatch" | "no-description";
+  mismatchReason?: string;
+  generatedAt: number;
+}
+
+// ── Duplicate radar types ─────────────────────────────────────────────────────
+
+export type DuplicateSimilarity = "high" | "medium";
+
+export interface DuplicatePair {
+  prANumber: number;
+  prBNumber: number;
+  similarity: DuplicateSimilarity;
+  reason: string;
+}
+
+export interface DuplicateRadarResult {
+  pairs: DuplicatePair[];
+  analyzedCount: number;
+  generatedAt: number;
 }

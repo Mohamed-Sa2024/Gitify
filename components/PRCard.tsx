@@ -105,6 +105,28 @@ export function PRCard({ pr, selected, depth = 0, isStacked, onClick }: Props) {
             <span className="font-mono" style={{ color: TOKENS.red }}>
               −{pr.deletions}
             </span>
+            {pr.momentumScore > 0 && (
+              <span
+                className="text-[10px] font-mono px-1.5 py-0.5 rounded"
+                style={{
+                  background:
+                    pr.momentumScore >= 70
+                      ? `${TOKENS.accent}18`
+                      : pr.momentumScore >= 40
+                        ? `${TOKENS.amber}18`
+                        : `${TOKENS.red}18`,
+                  color:
+                    pr.momentumScore >= 70
+                      ? TOKENS.accent
+                      : pr.momentumScore >= 40
+                        ? TOKENS.amber
+                        : TOKENS.red,
+                }}
+                title="Momentum score — likelihood of merging in 48h"
+              >
+                ⚡{pr.momentumScore}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-2">

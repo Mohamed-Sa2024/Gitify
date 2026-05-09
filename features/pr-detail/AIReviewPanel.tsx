@@ -1,0 +1,169 @@
+"use client";
+
+import { AlertTriangle, Bot, CheckCircle2, Info, Loader2 } from "lucide-react";
+import { TOKENS } from "@/lib/design";
+import { useAIReview } from "@/hooks/use-ai-review";
+import { Tag } from "@/components/Tag";
+import type { AIFindingSeverity } from "@/types/domain";
+
+interface Props {
+  fullName: string;
+  prNumber: number;
+  prTitle: string;
+  prBody: string | null;
+  enabled: boolean;
+}
+
+const SEV_COLOR: Record<AIFindingSeverity, string> = {
+  critical: TOKENS.red,
+  warning: TOKENS.amber,
+  suggestion: TOKENS.blue,
+};
+
+const SEV_ICON: Record<AIFindingSeverity, typeof AlertTriangle> = {
+  critical: AlertTriangle,
+  warning: AlertTriangle,
+  suggestion: Info,
+};
+
+export function AIReviewPanel({
+  fullName,
+  prNumber,
+  prTitle,
+  prBody,
+  enabled,
+}: Props) {
+  const { data, isLoading, isError, refetch } = useAIReview({
+    fullName,
+    prNumber,
+    prTitle,
+    prBody,
+    enabled,
+  });
+
+  if (!enabled) {
+    return (
+      <div className="p-8 text-center">
+        <Bot size={28} className="mx-auto mb-3" style={{ color: TOKENS.textMute }} />
+        <p className="text-[12px] text-textDim">
+          Click &ldquo;AI Review&rdquo; to analyze this PR with Claude.
+        </p>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="p-8 text-center space-y-3">
+        <Loader2
+          size={24}
+          className="mx-auto animate-spin"
+          style={{ color: TOKENS.accent }}
+        />
+        <p className="text-[12px] font-mono text-textDim">
+          Claude is reviewing the diff…
+        </p>
+        <p className="text-[11px] text-textMute">This may take 10–20 seconds.</p>
+      </div>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <div className="p-6 text-center space-y-3">
+        <AlertTriangle size={22} className="mx-auto" style={{ color: TOKENS.red }} />
+        <p className="text-[12px] text-textDim">AI review failed.</p>
+        <button
+          onClick={() => refetch()}
+          className="text-[11px] font-mono underline"
+          style={{ color: TOKENS.accent }}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  const criticalCount = data.findings.filter((f) => f.severity === "critical").length;
+  const warningCount = data.findings.filter((f) => f.severity === "warning").length;
+
+  return (
+    <div className="divide-y divide-border">
+      {/* Summary */}
+      <div className="p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <Bot size={13} style={{ color: TOKENS.accent }} />
+          <span className="text-[11px] font-mono uppercase tracking-wider text-textMute">
+            Summary
+          </span>
+          <div className="flex items-center gap-1.5 ml-auto flex-wrap">
+            {criticalCount > 0 && (
+              <Tag color={TOKENS.red}>{criticalCount} critical</Tag>
+            )}
+            {warningCount > 0 && (
+              <Tag color={TOKENS.amber}>
+                {warningCount} warning{warningCount !== 1 ? "s" : ""}
+              </Tag>
+            )}
+            {data.findings.length === 0 && (
+              <Tag color={TOKENS.accent}>clean</Tag>
+            )}
+          </div>
+        </div>
+        <p className="text-[12.5px] text-textDim leading-relaxed">{data.summary}</p>
+      </div>
+
+      {/* Findings */}
+      {data.findings.length === 0 ? (
+        <div className="p-6 flex items-center gap-3">
+          <CheckCircle2 size={16} style={{ color: TOKENS.accent }} />
+          <span className="text-[12.5px] text-textDim">
+            No issues found. The code looks clean.
+          </span>
+        </div>
+      ) : (
+        <div className="divide-y divide-border">
+          {data.findings.map((finding, i) => {
+            const color = SEV_COLOR[finding.severity];
+            const SevIcon = SEV_ICON[finding.severity];
+            return (
+              <div key={i} className="p-4">
+                <div className="flex items-start gap-2 mb-1.5">
+                  <SevIcon size={12} style={{ color }} className="mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                      <Tag color={color}>{finding.severity}</Tag>
+                      <span className="font-mono text-[10.5px] text-textMute truncate">
+                        {finding.file}
+                      </span>
+                    </div>
+                    <p className="text-[12.5px] font-medium text-textP">
+                      {finding.title}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-[11.5px] text-textDim leading-relaxed pl-5">
+                  {finding.description}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="px-4 py-2 flex items-center justify-between">
+        <span className="text-[10px] font-mono text-textMute">
+          Generated by claude-sonnet-4 ·{" "}
+          {new Date(data.generatedAt).toLocaleTimeString()}
+        </span>
+        <button
+          onClick={() => refetch()}
+          className="text-[10.5px] font-mono text-textDim hover:text-textP transition-colors"
+        >
+          Re-run
+        </button>
+      </div>
+    </div>
+  );
+}

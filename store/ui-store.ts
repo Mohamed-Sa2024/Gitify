@@ -10,7 +10,9 @@ export type ViewMode =
   | "analytics"
   | "health"
   | "review-load"
-  | "blast-radius";
+  | "blast-radius"
+  | "branches-mgmt"
+  | "duplicate-radar";
 
 interface UIState {
   view: ViewMode;
@@ -25,6 +27,9 @@ interface UIState {
 
   activeRepoFullName: string | null;
   setActiveRepo: (full: string | null) => void;
+
+  createPROpen: boolean;
+  setCreatePROpen: (open: boolean) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -41,4 +46,7 @@ export const useUIStore = create<UIState>((set) => ({
   activeRepoFullName: null,
   setActiveRepo: (activeRepoFullName) =>
     set({ activeRepoFullName, selectedPRNumber: null }),
+
+  createPROpen: false,
+  setCreatePROpen: (createPROpen) => set({ createPROpen }),
 }));

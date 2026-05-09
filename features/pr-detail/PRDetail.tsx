@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   ArrowUpRight,
+  ArrowLeft,
   Bot,
   CheckCircle2,
   ChevronRight,
@@ -21,7 +22,13 @@ import { Avatar } from "@/components/Avatar";
 import { BranchPill } from "@/components/BranchPill";
 import { StatusDot } from "@/components/StatusDot";
 import { Tag } from "@/components/Tag";
+import { DiffViewer } from "./DiffViewer";
+import { DriftPanel } from "./DriftPanel";
+import { ReviewPanel } from "./ReviewPanel";
+import { AIReviewPanel } from "./AIReviewPanel";
+import { PRSummaryCard } from "./PRSummaryCard";
 import { mergePull } from "@/lib/github/pulls";
+import { useRepos } from "@/hooks/use-repos";
 import type { PullRequest } from "@/types/domain";
 
 interface Props {
@@ -60,6 +67,9 @@ function buildChainToCurrentPR(
 export function PRDetail({ pr, allPRs, fullName, onClose }: Props) {
   const t = branchType(pr.branch);
   const queryClient = useQueryClient();
+  const { data: repos } = useRepos();
+  const activeRepo = repos?.find((r) => r.fullName === fullName);
+  const defaultBranch = activeRepo?.defaultBranch ?? "main";
   const parent = allPRs.find((p) => p.number === pr.parentNumber);
   const children = allPRs.filter((p) => p.parentNumber === pr.number);
   const isInStack = parent !== undefined || children.length > 0;
@@ -81,6 +91,50 @@ export function PRDetail({ pr, allPRs, fullName, onClose }: Props) {
     if (!pr.isAged) s += 10;
     return s;
   })();
+
+  // ── Tab state ────────────────────────────────────────────────────────────
+  const [tab, setTab] = useState<"overview" | "diff" | "ai-review">("overview");
+
+  // ── Single PR merge state ─────────────────────────────────────────────────
+  const [singleMerging, setSingleMerging] = useState(false);
+  const [singleMergeError, setSingleMergeError] = useState<string | null>(null);
+  const [singleMergeSuccess, setSingleMergeSuccess] = useState(false);
+  const [singleMergeMethod, setSingleMergeMethod] = useState<MergeMethod>("merge");
+
+  const handleSingleMerge = async () => {
+    if (singleMerging || !fullName) return;
+    const parts = fullName.split("/");
+    const owner = parts[0];
+    const repo = parts[1];
+    if (!owner || !repo) return;
+    setSingleMerging(true);
+    setSingleMergeError(null);
+    try {
+      await mergePull({ owner, repo, number: pr.number, mergeMethod: singleMergeMethod });
+      setSingleMergeSuccess(true);
+      await queryClient.invalidateQueries({ queryKey: ["pulls", fullName] });
+      setTimeout(() => onClose(), 1500);
+    } catch (err) {
+      const axiosErr = err as { response?: { data?: { message?: string } }; message?: string };
+      setSingleMergeError(axiosErr.response?.data?.message ?? axiosErr.message ?? "Merge failed");
+    } finally {
+      setSingleMerging(false);
+    }
+  };
+
+  const isMergeDisabled =
+    pr.status === "draft" ||
+    pr.conflicts === true ||
+    !fullName ||
+    singleMerging;
+
+  const mergeDisabledReason = pr.status === "draft"
+    ? "Cannot merge a draft PR"
+    : pr.conflicts
+      ? "PR has merge conflicts"
+      : !fullName
+        ? "No repository selected"
+        : undefined;
 
   // ── Sequential stack merge state ──────────────────────────────────────────
   const [mergeMethod, setMergeMethod] = useState<MergeMethod>("merge");
@@ -191,10 +245,132 @@ export function PRDetail({ pr, allPRs, fullName, onClose }: Props) {
             ))}
           </div>
         )}
+
+        {pr.momentumScore > 0 && (
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-[10px] font-mono text-textMute uppercase tracking-wider">
+              momentum
+            </span>
+            <div className="flex-1 h-1 rounded-full overflow-hidden bg-bg">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{
+                  width: `${pr.momentumScore}%`,
+                  background:
+                    pr.momentumScore >= 70
+                      ? TOKENS.accent
+                      : pr.momentumScore >= 40
+                        ? TOKENS.amber
+                        : TOKENS.red,
+                }}
+              />
+            </div>
+            <span
+              className="text-[11px] font-mono"
+              style={{
+                color:
+                  pr.momentumScore >= 70
+                    ? TOKENS.accent
+                    : pr.momentumScore >= 40
+                      ? TOKENS.amber
+                      : TOKENS.red,
+              }}
+            >
+              {pr.momentumScore}/100
+            </span>
+          </div>
+        )}
       </div>
+
+      {/* Tab strip */}
+      <div className="flex items-center gap-1 px-4 py-2 border-b border-border bg-surface">
+        {(["overview", "diff", "ai-review"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[12px] transition-all"
+            style={{
+              background: tab === t ? TOKENS.surface2 : "transparent",
+              color: tab === t ? TOKENS.text : TOKENS.textDim,
+            }}
+          >
+            {t === "ai-review" && <Bot size={11} />}
+            {t === "overview" ? "Overview" : t === "diff" ? "Diff" : "AI Review"}
+          </button>
+        ))}
+      </div>
+
+      {/* Full-screen diff overlay */}
+      {tab === "diff" && fullName && (
+        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: TOKENS.bg }}>
+          {/* Overlay header */}
+          <div
+            className="flex items-center gap-3 px-5 py-3 shrink-0"
+            style={{ background: TOKENS.surface, borderBottom: `1px solid ${TOKENS.border}` }}
+          >
+            <button
+              onClick={() => setTab("overview")}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[12px] font-medium transition-colors hover:bg-white/5"
+              style={{ color: TOKENS.textDim, border: `1px solid ${TOKENS.border}` }}
+            >
+              <ArrowLeft size={13} />
+              Back
+            </button>
+            <div
+              className="w-px h-4 shrink-0"
+              style={{ background: TOKENS.border }}
+            />
+            <StatusDot status={pr.status} />
+            <span
+              className="font-mono text-[11px] shrink-0"
+              style={{ color: TOKENS.textMute }}
+            >
+              #{pr.number}
+            </span>
+            <span
+              className="text-[13px] font-medium truncate"
+              style={{ color: TOKENS.text }}
+            >
+              {pr.title}
+            </span>
+            <div className="flex items-center gap-1.5 ml-auto shrink-0">
+              <BranchPill name={pr.branch} size="md" />
+              <ChevronRight size={11} className="text-textMute" />
+              <BranchPill name={pr.base} size="md" />
+            </div>
+          </div>
+          {/* Scrollable diff body */}
+          <div className="flex-1 overflow-auto">
+            <DiffViewer fullName={fullName} prNumber={pr.number} />
+          </div>
+        </div>
+      )}
 
       {/* Scrollable body */}
       <div className="flex-1 overflow-auto">
+        {tab === "ai-review" && fullName && (
+          <AIReviewPanel
+            fullName={fullName}
+            prNumber={pr.number}
+            prTitle={pr.title}
+            prBody={pr.body}
+            enabled={tab === "ai-review"}
+          />
+        )}
+        {tab === "overview" && (
+        <>
+        {/* AI Summary */}
+        {fullName && (
+          <div className="p-5 border-b border-border">
+            <PRSummaryCard
+              fullName={fullName}
+              prNumber={pr.number}
+              prTitle={pr.title}
+              prBody={pr.body}
+            />
+          </div>
+        )}
+
         {/* Merge readiness */}
         <div className="p-5 border-b border-border">
           <div className="flex items-center gap-2 mb-3">
@@ -241,6 +417,15 @@ export function PRDetail({ pr, allPRs, fullName, onClose }: Props) {
             </div>
           </div>
         </div>
+
+        {/* Diff drift */}
+        {fullName && (
+          <DriftPanel
+            fullName={fullName}
+            prBranch={pr.branch}
+            defaultBranch={defaultBranch}
+          />
+        )}
 
         {/* Stack chain */}
         {isInStack && (
@@ -468,36 +653,79 @@ export function PRDetail({ pr, allPRs, fullName, onClose }: Props) {
             </p>
           </div>
         </div>
+
+        {/* Review panel */}
+        {pr.status !== "merged" && pr.status !== "closed" && fullName && (
+          <ReviewPanel pr={pr} fullName={fullName} />
+        )}
+        </>
+        )}
       </div>
 
       {/* Footer actions */}
-      <div className="p-4 border-t border-border flex gap-2">
-        <button
-          disabled={!mergeReady}
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded text-[12px] font-medium transition-all"
-          style={{
-            background: mergeReady ? TOKENS.accent : TOKENS.surface2,
-            color: mergeReady ? TOKENS.bg : TOKENS.textMute,
-            border: `1px solid ${mergeReady ? TOKENS.accent : TOKENS.border}`,
-            cursor: mergeReady ? "pointer" : "not-allowed",
-          }}
-          title={
-            mergeReady
-              ? "Merge this PR"
-              : "Requires write permission on GitHub App"
-          }
-        >
-          <GitMerge size={13} /> Merge PR
-        </button>
-        <a
-          href={pr.url}
-          target="_blank"
-          rel="noreferrer"
-          className="px-3 py-2 rounded text-[12px] inline-flex items-center gap-1 bg-surface2 text-textP border border-border hover:border-borderHi transition-colors"
-          title="Open on GitHub"
-        >
-          <ArrowUpRight size={13} /> GitHub
-        </a>
+      <div className="p-4 border-t border-border space-y-2">
+        {/* Merge method selector */}
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-mono text-textMute">Method:</span>
+          {(["merge", "squash", "rebase"] as MergeMethod[]).map((m) => (
+            <button
+              key={m}
+              onClick={() => setSingleMergeMethod(m)}
+              className="text-[11px] font-mono px-2 py-0.5 rounded transition-all"
+              style={{
+                background: singleMergeMethod === m ? `${TOKENS.accent}18` : TOKENS.surface2,
+                border: `1px solid ${singleMergeMethod === m ? `${TOKENS.accent}55` : TOKENS.border}`,
+                color: singleMergeMethod === m ? TOKENS.accent : TOKENS.textDim,
+              }}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={() => void handleSingleMerge()}
+            disabled={isMergeDisabled}
+            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded text-[12px] font-medium transition-all"
+            style={{
+              background: singleMergeSuccess
+                ? TOKENS.accent
+                : isMergeDisabled
+                  ? TOKENS.surface2
+                  : TOKENS.accent,
+              color: singleMergeSuccess
+                ? TOKENS.bg
+                : isMergeDisabled
+                  ? TOKENS.textMute
+                  : TOKENS.bg,
+              border: `1px solid ${isMergeDisabled && !singleMergeSuccess ? TOKENS.border : TOKENS.accent}`,
+              cursor: isMergeDisabled ? "not-allowed" : "pointer",
+            }}
+            title={mergeDisabledReason ?? "Merge this PR"}
+          >
+            {singleMerging ? (
+              <><Loader2 size={13} className="animate-spin" /> Merging…</>
+            ) : singleMergeSuccess ? (
+              <><CheckCircle2 size={13} /> Merged!</>
+            ) : (
+              <><GitMerge size={13} /> Merge PR</>
+            )}
+          </button>
+          <a
+            href={pr.url}
+            target="_blank"
+            rel="noreferrer"
+            className="px-3 py-2 rounded text-[12px] inline-flex items-center gap-1 bg-surface2 text-textP border border-border hover:border-borderHi transition-colors"
+            title="Open on GitHub"
+          >
+            <ArrowUpRight size={13} /> GitHub
+          </a>
+        </div>
+
+        {singleMergeError && (
+          <Tag color={TOKENS.red}>{singleMergeError}</Tag>
+        )}
       </div>
     </div>
   );
